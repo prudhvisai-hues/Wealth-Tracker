@@ -8,11 +8,17 @@ import {
   sortExpensesByRecent,
 } from './expenseModel';
 import { formatCurrencyINR } from './currency';
+import {
+  getMonthKeyFromDateString,
+  isExpenseLocked,
+  isMonthCompleted,
+} from './monthService';
+import { validateAmount, validateDate, validateRequiredText } from './validationUtils';
 
 const getToday = () => new Date().toISOString().slice(0, 10);
 
 const ExpenseTracker: React.FC = () => {
-  const { expenses } = useAppState();
+  const { expenses, completedMonths } = useAppState();
   const dispatch = useAppDispatch();
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
@@ -36,30 +42,36 @@ const ExpenseTracker: React.FC = () => {
     event.preventDefault();
     setError(null);
 
-    const trimmedDescription = description.trim();
-    const parsedAmount = Number.parseFloat(amount.trim());
-
-    if (!trimmedDescription) {
-      setError('Please add a short description.');
+    const descriptionResult = validateRequiredText(description, 'short description');
+    if (descriptionResult.error) {
+      setError(descriptionResult.error);
       return;
     }
 
-    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
-      setError('Please enter a valid, positive amount.');
+    const amountResult = validateAmount(amount, { min: 0.01 });
+    if (amountResult.error) {
+      setError(amountResult.error);
       return;
     }
 
-    if (!date) {
-      setError('Please select a date.');
+    const dateResult = validateDate(date);
+    if (dateResult.error) {
+      setError(dateResult.error);
+      return;
+    }
+
+    const expenseMonth = getMonthKeyFromDateString(dateResult.value);
+    if (isMonthCompleted(expenseMonth, completedMonths)) {
+      setError('This month is closed. Choose a date in an open month.');
       return;
     }
 
     const newExpense: Expense = {
       id: createExpenseId(),
-      amount: parsedAmount,
-      description: trimmedDescription,
+      amount: amountResult.value,
+      description: descriptionResult.value,
       category,
-      date,
+      date: dateResult.value,
       createdAt: new Date().toISOString(),
     };
 
@@ -137,28 +149,38 @@ const ExpenseTracker: React.FC = () => {
           <p>No transactions yet.</p>
         ) : (
           <ul className="activity-list">
-            {recentExpenses.map((expense) => (
-              <li key={expense.id} className="activity-item">
-                <div className="activity-main">
-                  <span className="activity-description">{expense.description}</span>
-                  <span className="activity-meta">
-                    {expense.category} · {expense.date}
-                  </span>
-                </div>
-                <div className="activity-actions">
-                  <span className="activity-amount">
-                    {formatCurrencyINR(expense.amount)}
-                  </span>
-                  <button
-                    type="button"
-                    className="btn btn-secondary"
-                    onClick={() => handleDelete(expense.id)}
-                  >
-                    Delete
-                  </button>
-                </div>
-              </li>
-            ))}
+            {recentExpenses.map((expense) => {
+              const isLocked = isExpenseLocked(expense, completedMonths);
+              return (
+                <li key={expense.id} className="activity-item">
+                  <div className="activity-main">
+                    <span className="activity-description">{expense.description}</span>
+                    <span className="activity-meta">
+                      {expense.category} ? {expense.date}
+                    </span>
+                    {isLocked && <span className="lock-badge">Locked</span>}
+                  </div>
+                  <div className="activity-actions">
+                    <span className="activity-amount">
+                      {formatCurrencyINR(expense.amount)}
+                    </span>
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      onClick={() => handleDelete(expense.id)}
+                      disabled={isLocked}
+                      title={
+                        isLocked
+                          ? 'Completed months cannot be edited.'
+                          : 'Delete this transaction.'
+                      }
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>

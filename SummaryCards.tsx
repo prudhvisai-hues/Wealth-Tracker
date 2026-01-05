@@ -4,9 +4,12 @@ import { formatCurrencyINR } from './currency';
 import { getBucketTotals, getMonthlyExpenses, toPercent } from './breakdownUtils';
 
 const SummaryCards: React.FC = () => {
-  const { income, config, expenses } = useAppState();
+  const { income, config, expenses, currentMonth } = useAppState();
 
-  const monthlyExpenses = useMemo(() => getMonthlyExpenses(expenses), [expenses]);
+  const monthlyExpenses = useMemo(
+    () => getMonthlyExpenses(expenses, currentMonth),
+    [expenses, currentMonth]
+  );
   const bucketTotals = useMemo(() => getBucketTotals(monthlyExpenses), [monthlyExpenses]);
 
   const fixedAllocated = income * config.fixedExpensesPercentage;

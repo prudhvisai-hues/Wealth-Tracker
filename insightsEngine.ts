@@ -66,10 +66,12 @@ export const generateInsights = (params: {
   config: BudgetConfig;
   expenses: Expense[];
   today?: Date;
+  referenceMonth?: string;
 }): Insight[] => {
   const { income, config, expenses } = params;
   const today = params.today ?? new Date();
-  const monthlyExpenses = getMonthlyExpenses(expenses, today);
+  const reference = params.referenceMonth ?? today;
+  const monthlyExpenses = getMonthlyExpenses(expenses, reference);
   const lifestyleExpenses = filterLifestyleExpenses(monthlyExpenses);
 
   const fixedSpent = monthlyExpenses

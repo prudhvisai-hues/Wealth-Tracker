@@ -7,6 +7,7 @@ import SummaryCards from '../SummaryCards';
 import BreakdownPanel from '../BreakdownPanel';
 import GoalCalculator from '../GoalCalculator';
 import FinancialInsightsPanel from '../FinancialInsightsPanel';
+import MonthLifecyclePanel from '../MonthLifecyclePanel';
 
 const formatDate = (date: Date) => {
   return new Intl.DateTimeFormat('en-IN', {
@@ -18,10 +19,21 @@ const formatDate = (date: Date) => {
 };
 
 const Dashboard: React.FC = () => {
-  const { income, budget } = useAppState();
+  const { income, budget, isHydrated } = useAppState();
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const todayLabel = useMemo(() => formatDate(new Date()), []);
+
+  if (!isHydrated) {
+    return (
+      <div className="app-shell">
+        <div className="card card-wide loading-card">
+          <h2>Loading dashboard</h2>
+          <p className="card-meta">Syncing your latest financial snapshot.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="app-shell">
@@ -58,6 +70,7 @@ const Dashboard: React.FC = () => {
           </button>
         </div>
 
+        <MonthLifecyclePanel />
         <SummaryCards />
         <BreakdownPanel />
         <GoalCalculator />

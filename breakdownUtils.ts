@@ -20,11 +20,33 @@ const isSameMonth = (date: Date, reference: Date): boolean => {
   );
 };
 
+const parseReferenceDate = (reference: Date | string): Date => {
+  if (reference instanceof Date) {
+    return reference;
+  }
+
+  const trimmed = reference.trim();
+  if (trimmed.length === 7 && trimmed.includes('-')) {
+    const [yearPart, monthPart] = trimmed.split('-');
+    const year = Number.parseInt(yearPart, 10);
+    const month = Number.parseInt(monthPart, 10);
+    if (Number.isFinite(year) && Number.isFinite(month) && month >= 1 && month <= 12) {
+      return new Date(year, month - 1, 1);
+    }
+  }
+
+  const parsed = new Date(reference);
+  return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+};
+
 export const getMonthlyExpenses = (
   expenses: Expense[],
-  referenceDate: Date = new Date()
+  referenceDate: Date | string = new Date()
 ): Expense[] => {
-  return expenses.filter((expense) => isSameMonth(parseExpenseDate(expense), referenceDate));
+  const resolvedReference = parseReferenceDate(referenceDate);
+  return expenses.filter((expense) =>
+    isSameMonth(parseExpenseDate(expense), resolvedReference)
+  );
 };
 
 export const getCategoryTotals = (expenses: Expense[]) => {

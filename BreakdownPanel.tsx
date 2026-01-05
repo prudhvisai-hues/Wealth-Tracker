@@ -10,9 +10,12 @@ import {
 import { EXPENSE_CATEGORIES } from './expenseModel';
 
 const BreakdownPanel: React.FC = () => {
-  const { expenses, income } = useAppState();
+  const { expenses, income, currentMonth } = useAppState();
 
-  const monthlyExpenses = useMemo(() => getMonthlyExpenses(expenses), [expenses]);
+  const monthlyExpenses = useMemo(
+    () => getMonthlyExpenses(expenses, currentMonth),
+    [expenses, currentMonth]
+  );
   const totals = useMemo(() => getCategoryTotals(monthlyExpenses), [monthlyExpenses]);
   const totalSpent = useMemo(() => getTotalSpent(monthlyExpenses), [monthlyExpenses]);
 

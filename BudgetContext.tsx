@@ -1,92 +1,171 @@
-import React, { createContext, useContext, useReducer, useEffect, ReactNode } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useReducer,
+  useEffect,
+  ReactNode,
+  useState,
+} from 'react';
 import { Budget, BudgetConfig, calculateBudget, DEFAULT_BUDGET_CONFIG } from './budgetEngine';
 import { Expense } from './expenseModel';
+import { getMonthlyExpenses } from './breakdownUtils';
+import {
+  createMonthSnapshot,
+  getCurrentMonthKey,
+  getExpenseMonthKey,
+  getNextMonthKey,
+  isMonthCompleted,
+} from './monthService';
+import { MonthSnapshot } from './monthModel';
 import storageService from './storageService';
 
-interface AppState {
+interface CoreAppState {
   income: number;
   config: BudgetConfig;
   budget: Budget;
   expenses: Expense[];
+  currentMonth: string;
+  completedMonths: string[];
+  snapshots: MonthSnapshot[];
+  carryoverBalance: number;
+}
+
+interface AppState extends CoreAppState {
+  isHydrated: boolean;
 }
 
 type Action =
   | { type: 'SET_INCOME'; payload: number }
   | { type: 'ADD_EXPENSE'; payload: Expense }
   | { type: 'DELETE_EXPENSE'; payload: string }
-  | { type: 'RECALCULATE_BUDGET' };
+  | { type: 'RECALCULATE_BUDGET' }
+  | { type: 'COMPLETE_MONTH' }
+  | { type: 'RESET_APP' };
 
 const AppStateContext = createContext<AppState | undefined>(undefined);
 const AppDispatchContext = createContext<React.Dispatch<Action> | undefined>(undefined);
 
 const STORAGE_KEY = 'appState';
 
-const getInitialState = (): AppState => {
-  const savedState = storageService.get<AppState>(STORAGE_KEY);
-  if (savedState) {
-    const savedIncome = savedState.income ?? 0;
-    const savedConfig = savedState.config ?? DEFAULT_BUDGET_CONFIG;
-    const savedExpenses = savedState.expenses ?? [];
-
-    // Recalculate budget on load to account for date changes (remaining days)
-    const freshBudget = calculateBudget(savedIncome, savedConfig, savedExpenses);
-    return {
-      ...savedState,
-      income: savedIncome,
-      config: savedConfig,
-      expenses: savedExpenses,
-      budget: freshBudget,
-    };
-  }
-
-  // Default initial state
+const getDefaultState = (): CoreAppState => {
   const initialIncome = 0;
+  const currentMonth = getCurrentMonthKey();
   return {
     income: initialIncome,
     config: DEFAULT_BUDGET_CONFIG,
     expenses: [],
-    budget: calculateBudget(initialIncome, DEFAULT_BUDGET_CONFIG, []),
+    currentMonth,
+    completedMonths: [],
+    snapshots: [],
+    carryoverBalance: 0,
+    budget: calculateBudget(initialIncome, DEFAULT_BUDGET_CONFIG, [], 0),
   };
 };
 
-const appReducer = (state: AppState, action: Action): AppState => {
+const getInitialState = (): CoreAppState => {
+  const savedState = storageService.get<CoreAppState>(STORAGE_KEY);
+  if (savedState) {
+    const defaults = getDefaultState();
+    const savedIncome = savedState.income ?? defaults.income;
+    const savedConfig = savedState.config ?? defaults.config;
+    const savedExpenses = savedState.expenses ?? defaults.expenses;
+    const currentMonth = savedState.currentMonth ?? defaults.currentMonth;
+    const completedMonths = savedState.completedMonths ?? defaults.completedMonths;
+    const snapshots = savedState.snapshots ?? defaults.snapshots;
+    const carryoverBalance = savedState.carryoverBalance ?? defaults.carryoverBalance;
+
+    // Recalculate budget on load to account for date changes (remaining days)
+    const monthlyExpenses = getMonthlyExpenses(savedExpenses, currentMonth);
+    const freshBudget = calculateBudget(
+      savedIncome,
+      savedConfig,
+      monthlyExpenses,
+      carryoverBalance
+    );
+    return {
+      ...defaults,
+      income: savedIncome,
+      config: savedConfig,
+      expenses: savedExpenses,
+      currentMonth,
+      completedMonths,
+      snapshots,
+      carryoverBalance,
+      budget: freshBudget,
+    };
+  }
+
+  return getDefaultState();
+};
+
+const recalculateBudget = (state: CoreAppState): CoreAppState => {
+  const monthlyExpenses = getMonthlyExpenses(state.expenses, state.currentMonth);
+  return {
+    ...state,
+    budget: calculateBudget(
+      state.income,
+      state.config,
+      monthlyExpenses,
+      state.carryoverBalance
+    ),
+  };
+};
+
+const appReducer = (state: CoreAppState, action: Action): CoreAppState => {
   switch (action.type) {
     case 'SET_INCOME': {
       const newIncome = action.payload;
-      const newBudget = calculateBudget(newIncome, state.config, state.expenses);
-      return {
-        ...state,
-        income: newIncome,
-        budget: newBudget,
-      };
+      return recalculateBudget({ ...state, income: newIncome });
     }
     case 'ADD_EXPENSE': {
+      const expenseMonth = getExpenseMonthKey(action.payload);
+      if (isMonthCompleted(expenseMonth, state.completedMonths)) {
+        return state;
+      }
+
       const updatedExpenses = [action.payload, ...state.expenses];
-      const newBudget = calculateBudget(state.income, state.config, updatedExpenses);
-      return {
-        ...state,
-        expenses: updatedExpenses,
-        budget: newBudget,
-      };
+      return recalculateBudget({ ...state, expenses: updatedExpenses });
     }
     case 'DELETE_EXPENSE': {
+      const expenseToDelete = state.expenses.find(
+        (expense) => expense.id === action.payload
+      );
+      if (expenseToDelete && isMonthCompleted(getExpenseMonthKey(expenseToDelete), state.completedMonths)) {
+        return state;
+      }
+
       const updatedExpenses = state.expenses.filter(
         (expense) => expense.id !== action.payload
       );
-      const newBudget = calculateBudget(state.income, state.config, updatedExpenses);
-      return {
-        ...state,
-        expenses: updatedExpenses,
-        budget: newBudget,
-      };
+      return recalculateBudget({ ...state, expenses: updatedExpenses });
     }
     case 'RECALCULATE_BUDGET': {
       // Recalculate with existing income and config, useful for date changes
-      const freshBudget = calculateBudget(state.income, state.config, state.expenses);
-      return {
+      return recalculateBudget(state);
+    }
+    case 'COMPLETE_MONTH': {
+      if (isMonthCompleted(state.currentMonth, state.completedMonths)) {
+        return state;
+      }
+
+      const snapshot = createMonthSnapshot({
+        month: state.currentMonth,
+        income: state.income,
+        expenses: state.expenses,
+      });
+      const nextMonth = getNextMonthKey(state.currentMonth);
+      const carryoverBalance = state.carryoverBalance + snapshot.savings;
+
+      return recalculateBudget({
         ...state,
-        budget: freshBudget,
-      };
+        currentMonth: nextMonth,
+        completedMonths: [...state.completedMonths, state.currentMonth],
+        snapshots: [snapshot, ...state.snapshots],
+        carryoverBalance,
+      });
+    }
+    case 'RESET_APP': {
+      return getDefaultState();
     }
     default: {
       throw new Error(`Unhandled action type: ${(action as any).type}`);
@@ -96,11 +175,17 @@ const appReducer = (state: AppState, action: Action): AppState => {
 
 export const BudgetProvider = ({ children }: { children: ReactNode }) => {
   const [state, dispatch] = useReducer(appReducer, getInitialState());
+  const [isHydrated, setIsHydrated] = useState(false);
 
   useEffect(() => {
     // Persist state to localStorage whenever it changes
     storageService.set(STORAGE_KEY, state);
   }, [state]);
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => setIsHydrated(true), 150);
+    return () => window.clearTimeout(timeout);
+  }, []);
 
   useEffect(() => {
     const handleFocus = () => {
@@ -115,7 +200,7 @@ export const BudgetProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   return (
-    <AppStateContext.Provider value={state}>
+    <AppStateContext.Provider value={{ ...state, isHydrated }}>
       <AppDispatchContext.Provider value={dispatch}>
         {children}
       </AppDispatchContext.Provider>

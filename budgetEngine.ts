@@ -57,7 +57,8 @@ const getSpentByBucket = (expenses: Expense[]) => {
 export const calculateBudget = (
   monthlyIncome: number,
   config: BudgetConfig = DEFAULT_BUDGET_CONFIG,
-  expenses: Expense[] = []
+  expenses: Expense[] = [],
+  carryoverBalance: number = 0
 ): Budget => {
   const fixedExpenses = monthlyIncome * config.fixedExpensesPercentage;
   const plannedSavings = monthlyIncome * config.savingsPercentage;
@@ -71,7 +72,7 @@ export const calculateBudget = (
   const remainingFixedExpenses = fixedExpenses - spent.fixedExpenses;
   const remainingSavings = plannedSavings - spent.plannedSavings;
   const remainingInvestments = investmentAllocation - spent.investmentAllocation;
-  const remainingLifestyle = lifestyleBalance - spent.lifestyleBalance;
+  const remainingLifestyle = lifestyleBalance - spent.lifestyleBalance + carryoverBalance;
 
   const remainingDays = getRemainingDaysInMonth();
   const dailySafeToSpend = remainingLifestyle / remainingDays;

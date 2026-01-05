@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAppDispatch } from './BudgetContext';
 import { formatCurrencyINR } from './currency';
+import { validateAmount } from './validationUtils';
 
 interface IncomeModalProps {
   isOpen: boolean;
@@ -53,14 +54,14 @@ const IncomeModal: React.FC<IncomeModalProps> = ({ isOpen, onClose, currentIncom
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError(null); // Reset error on new submission
-
-    const newIncome = parseFloat(income.trim());
-    if (income.trim() !== '' && !isNaN(newIncome) && newIncome >= 0) {
-      dispatch({ type: 'SET_INCOME', payload: newIncome });
-      onClose();
-    } else {
+    const result = validateAmount(income, { min: 0, allowZero: true });
+    if (result.error) {
       setError('Please enter a valid, non-negative number for the income.');
+      return;
     }
+
+    dispatch({ type: 'SET_INCOME', payload: result.value ?? 0 });
+    onClose();
   };
 
   if (!isOpen) {

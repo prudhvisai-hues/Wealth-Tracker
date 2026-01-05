@@ -29,6 +29,15 @@ const storageService = {
       console.error('Failed to remove from storage', error);
     }
   },
+
+  clearAll(): void {
+    if (!isBrowser) return;
+    try {
+      window.localStorage.clear();
+    } catch (error) {
+      console.error('Failed to clear storage', error);
+    }
+  },
 };
 
 export default storageService;
