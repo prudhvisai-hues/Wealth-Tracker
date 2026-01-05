@@ -6,6 +6,7 @@ import { formatCurrencyINR } from '../currency';
 import SummaryCards from '../SummaryCards';
 import BreakdownPanel from '../BreakdownPanel';
 import GoalCalculator from '../GoalCalculator';
+import FinancialInsightsPanel from '../FinancialInsightsPanel';
 
 const formatDate = (date: Date) => {
   return new Intl.DateTimeFormat('en-IN', {
@@ -60,6 +61,7 @@ const Dashboard: React.FC = () => {
         <SummaryCards />
         <BreakdownPanel />
         <GoalCalculator />
+        <FinancialInsightsPanel />
 
         <div className="card card-wide">
           <ExpenseTracker />
