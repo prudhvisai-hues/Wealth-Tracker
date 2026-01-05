@@ -1,4 +1,4 @@
-import { formatCurrencyINR } from '../utils/currency';
+import { Expense, getBudgetBucketForCategory } from './expenseModel';
 
 export interface BudgetConfig {
   fixedExpensesPercentage: number; // e.g., 0.50 for 50%
@@ -31,15 +31,33 @@ const getRemainingDaysInMonth = (): number => {
   return Math.max(remainingDays, 1); // Ensure at least 1 day to avoid division by zero
 };
 
+const getSpentByBucket = (expenses: Expense[]) => {
+  return expenses.reduce(
+    (acc, expense) => {
+      const bucket = getBudgetBucketForCategory(expense.category);
+      acc[bucket] += expense.amount;
+      return acc;
+    },
+    {
+      fixedExpenses: 0,
+      plannedSavings: 0,
+      investmentAllocation: 0,
+      lifestyleBalance: 0,
+    }
+  );
+};
+
 /**
  * Calculates all budget values based on monthly income and configuration.
  * @param monthlyIncome The total monthly income.
  * @param config The budget allocation percentages.
+ * @param expenses The list of manual expenses.
  * @returns A Budget object with all calculated financial metrics.
  */
 export const calculateBudget = (
   monthlyIncome: number,
-  config: BudgetConfig = DEFAULT_BUDGET_CONFIG
+  config: BudgetConfig = DEFAULT_BUDGET_CONFIG,
+  expenses: Expense[] = []
 ): Budget => {
   const fixedExpenses = monthlyIncome * config.fixedExpensesPercentage;
   const plannedSavings = monthlyIncome * config.savingsPercentage;
@@ -48,15 +66,22 @@ export const calculateBudget = (
   const lifestyleBalance =
     monthlyIncome - fixedExpenses - plannedSavings - investmentAllocation;
 
+  const spent = getSpentByBucket(expenses);
+
+  const remainingFixedExpenses = fixedExpenses - spent.fixedExpenses;
+  const remainingSavings = plannedSavings - spent.plannedSavings;
+  const remainingInvestments = investmentAllocation - spent.investmentAllocation;
+  const remainingLifestyle = lifestyleBalance - spent.lifestyleBalance;
+
   const remainingDays = getRemainingDaysInMonth();
-  const dailySafeToSpend = lifestyleBalance / remainingDays;
+  const dailySafeToSpend = remainingLifestyle / remainingDays;
 
   return {
     monthlyIncome,
-    fixedExpenses,
-    plannedSavings,
-    investmentAllocation,
-    lifestyleBalance,
+    fixedExpenses: remainingFixedExpenses,
+    plannedSavings: remainingSavings,
+    investmentAllocation: remainingInvestments,
+    lifestyleBalance: remainingLifestyle,
     dailySafeToSpend,
   };
 };

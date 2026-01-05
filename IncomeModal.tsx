@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { useAppDispatch } from '../context/BudgetContext';
-import { formatCurrencyINR } from '../utils/currency';
+import React, { useState, useEffect, useRef } from 'react';
+import { useAppDispatch } from './BudgetContext';
+import { formatCurrencyINR } from './currency';
 
 interface IncomeModalProps {
   isOpen: boolean;
@@ -10,19 +10,56 @@ interface IncomeModalProps {
 
 const IncomeModal: React.FC<IncomeModalProps> = ({ isOpen, onClose, currentIncome }) => {
   const [income, setIncome] = useState(currentIncome.toString());
+  const [error, setError] = useState<string | null>(null);
   const dispatch = useAppDispatch();
+  const modalContentRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     // Sync local state if the prop changes while the modal is open or being re-rendered
     setIncome(currentIncome.toString());
-  }, [currentIncome]);
+    setError(null); // Reset error when modal is re-opened or income changes
+  }, [currentIncome, isOpen]);
+
+  useEffect(() => {
+    const handleEsc = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleEsc);
+
+    return () => {
+      window.removeEventListener('keydown', handleEsc);
+    };
+  }, [onClose]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        modalContentRef.current &&
+        !modalContentRef.current.contains(event.target as Node)
+      ) {
+        onClose();
+      }
+    };
+
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isOpen, onClose]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const newIncome = parseFloat(income);
-    if (!isNaN(newIncome) && newIncome >= 0) {
+    setError(null); // Reset error on new submission
+
+    const newIncome = parseFloat(income.trim());
+    if (income.trim() !== '' && !isNaN(newIncome) && newIncome >= 0) {
       dispatch({ type: 'SET_INCOME', payload: newIncome });
       onClose();
+    } else {
+      setError('Please enter a valid, non-negative number for the income.');
     }
   };
 
@@ -31,9 +68,14 @@ const IncomeModal: React.FC<IncomeModalProps> = ({ isOpen, onClose, currentIncom
   }
 
   return (
-    <div className="modal-overlay">
-      <div className="modal-content">
-        <h2>Update Monthly Income</h2>
+    <div
+      className="modal-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="modal-title"
+    >
+      <div className="modal-content" ref={modalContentRef}>
+        <h2 id="modal-title">Update Monthly Income</h2>
         <p>
           Your current monthly income is set to{' '}
           <strong>{formatCurrencyINR(currentIncome)}</strong>.
@@ -51,6 +93,7 @@ const IncomeModal: React.FC<IncomeModalProps> = ({ isOpen, onClose, currentIncom
               step="100"
               autoFocus
             />
+            {error && <p className="error-message">{error}</p>}
           </div>
           <div className="modal-actions">
             <button type="button" className="btn btn-secondary" onClick={onClose}>
