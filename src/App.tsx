@@ -23,6 +23,24 @@ const Dashboard: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const todayLabel = useMemo(() => formatDate(new Date()), []);
+  const dailyQuote = useMemo(() => {
+    const quotes = [
+      'Budgeting: telling your money where to go instead of wondering where it went.',
+      'Your future self called. It wants you to save a little more today.',
+      'Spend smart, save steady, and let your money do the heavy lifting.',
+      'Small expenses leak boats. Patch the leaks, keep the cash.',
+      'Track it, plan it, and watch your savings grow.',
+      'Saving money is a lot like dieting: small habits beat big promises.',
+      'Every expense is a vote for the life you want.',
+    ];
+    const today = new Date();
+    const startOfYear = new Date(today.getFullYear(), 0, 1);
+    const dayOfYear = Math.floor(
+      (today.getTime() - startOfYear.getTime()) / (24 * 60 * 60 * 1000)
+    );
+    const dayIndex = dayOfYear % quotes.length;
+    return quotes[dayIndex];
+  }, []);
 
   if (!isHydrated) {
     return (
@@ -41,6 +59,7 @@ const Dashboard: React.FC = () => {
         <div>
           <p className="app-eyebrow">Wealth Guard</p>
           <h1>Financial Command Center</h1>
+          <p className="app-quote">{dailyQuote}</p>
         </div>
         <div className="app-date">
           <span>Today</span>

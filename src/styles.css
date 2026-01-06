@@ -45,6 +45,14 @@ body {
   font-size: 32px;
 }
 
+.app-quote {
+  margin: 10px 0 0 0;
+  color: #c7cedf;
+  font-size: 14px;
+  font-style: italic;
+  max-width: 520px;
+}
+
 .app-date {
   text-align: right;
   display: flex;
